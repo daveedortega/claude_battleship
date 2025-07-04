@@ -1,0 +1,547 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Battleship</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            background-color: #ADD8E6;
+            margin: 0;
+            padding: 20px;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+        }
+        
+        .game-container {
+            display: flex;
+            gap: 40px;
+            margin-top: 20px;
+        }
+        
+        .board-container {
+            text-align: center;
+        }
+        
+        .board {
+            display: grid;
+            grid-template-columns: repeat(9, 40px);
+            grid-template-rows: repeat(9, 40px);
+            gap: 2px;
+            background-color: #87CEEB;
+            padding: 10px;
+            border: 2px solid #4682B4;
+        }
+        
+        .cell {
+            width: 40px;
+            height: 40px;
+            border: 1px solid #4682B4;
+            background-color: white;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-weight: bold;
+            font-size: 14px;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+        
+        .cell:hover:not(.header-cell) {
+            background-color: #FFE4B5;
+            border: 2px solid #FF6347;
+        }
+        
+        .ship:hover {
+            background-color: #FF6347 !important;
+            border: 2px solid #8B0000;
+        }
+        
+        .cell:hover:not(.header-cell):not(.ship) {
+            cursor: crosshair;
+        }
+        
+        .ship:hover {
+            cursor: pointer;
+        }
+        
+        .header-cell {
+            background-color: #B0E0E6;
+            cursor: default;
+        }
+        
+        .ship {
+            background-color: #228B22;
+        }
+        
+        .hit {
+            background-color: gold;
+            color: black;
+        }
+        
+        .miss {
+            background-color: #FF6347;
+            color: white;
+        }
+        
+        .setup-controls {
+            margin: 20px 0;
+        }
+        
+        .ship-selector {
+            margin: 10px;
+            padding: 10px;
+            background-color: white;
+            border: 2px solid #4682B4;
+            border-radius: 5px;
+        }
+        
+        .status {
+            font-size: 18px;
+            font-weight: bold;
+            margin: 20px 0;
+            padding: 10px;
+            background-color: white;
+            border: 2px solid #4682B4;
+            border-radius: 5px;
+        }
+        
+        button {
+            padding: 10px 20px;
+            font-size: 16px;
+            background-color: #4682B4;
+            color: white;
+            border: none;
+            border-radius: 5px;
+            cursor: pointer;
+            margin: 5px;
+        }
+        
+        button:hover {
+            background-color: #1E6091;
+        }
+        
+        button:disabled {
+            background-color: #ccc;
+            cursor: not-allowed;
+        }
+    </style>
+</head>
+<body>
+    <h1>Battleship</h1>
+    <div class="status" id="status">Ships placed: 0/1 Destroyer, 0/2 Cruisers, 0/1 Battleship</div>
+    
+    <div class="setup-controls" id="setupControls">
+        <div class="ship-selector">
+            <label>Ship Size: </label>
+            <select id="shipSize">
+                <option value="2">Destroyer (1 left)</option>
+                <option value="3">Cruiser (2 left)</option>
+                <option value="5">Battleship (1 left)</option>
+            </select>
+            <label>Direction: </label>
+            <select id="direction">
+                <option value="horizontal">Horizontal</option>
+                <option value="vertical">Vertical</option>
+            </select>
+        </div>
+        <button onclick="startGame()">Start Game</button>
+    </div>
+    
+    <div class="game-container">
+        <div class="board-container">
+            <h3>Your Board</h3>
+            <div class="board" id="playerBoard"></div>
+        </div>
+        <div class="board-container">
+            <h3>Enemy Board</h3>
+            <div class="board" id="enemyBoard"></div>
+        </div>
+    </div>
+    
+    <script>
+        const BOARD_SIZE = 8;
+        const SHIPS = [
+            { size: 2, count: 1, placed: 0 },
+            { size: 3, count: 2, placed: 0 },
+            { size: 5, count: 1, placed: 0 }
+        ];
+        
+        let gameState = 'setup'; // 'setup', 'playing', 'gameOver'
+        let currentPlayer = 'player';
+        let playerBoard = [];
+        let enemyBoard = [];
+        let playerShips = [];
+        let enemyShips = [];
+        let enemyHits = [];
+        let enemyTargets = [];
+        
+        // Initialize boards
+        function initBoard() {
+            return Array(BOARD_SIZE).fill().map(() => Array(BOARD_SIZE).fill(0));
+        }
+        
+        function createBoardHTML(boardId, clickable = false) {
+            const board = document.getElementById(boardId);
+            board.innerHTML = '';
+            
+            // Header row
+            const headerRow = ['', 'A', 'B', 'C', 'D', 'E', 'F', 'G', 'H'];
+            headerRow.forEach(header => {
+                const cell = document.createElement('div');
+                cell.className = 'cell header-cell';
+                cell.textContent = header;
+                board.appendChild(cell);
+            });
+            
+            // Board cells
+            for (let row = 0; row < BOARD_SIZE; row++) {
+                // Row number
+                const rowCell = document.createElement('div');
+                rowCell.className = 'cell header-cell';
+                rowCell.textContent = (row + 1).toString();
+                board.appendChild(rowCell);
+                
+                // Board cells
+                for (let col = 0; col < BOARD_SIZE; col++) {
+                    const cell = document.createElement('div');
+                    cell.className = 'cell';
+                    cell.dataset.row = row;
+                    cell.dataset.col = col;
+                    
+                    if (clickable) {
+                        cell.addEventListener('click', (e) => handleCellClick(e, boardId));
+                    }
+                    
+                    board.appendChild(cell);
+                }
+            }
+        }
+        
+        function handleCellClick(e, boardId) {
+            const row = parseInt(e.target.dataset.row);
+            const col = parseInt(e.target.dataset.col);
+            
+            if (gameState === 'setup' && boardId === 'playerBoard') {
+                placePlayerShip(row, col);
+            } else if (gameState === 'playing' && boardId === 'enemyBoard' && currentPlayer === 'player') {
+                playerShoot(row, col);
+            }
+        }
+        
+        function placePlayerShip(row, col) {
+            // Check if clicking on an existing ship to remove it
+            if (playerBoard[row][col] === 1) {
+                removePlayerShip(row, col);
+                return;
+            }
+            
+            const size = parseInt(document.getElementById('shipSize').value);
+            const direction = document.getElementById('direction').value;
+            
+            // Check if we have ships of this size left to place
+            const shipType = SHIPS.find(s => s.size === size);
+            if (shipType.placed >= shipType.count) {
+                alert(`You can only place ${shipType.count} ship(s) of size ${size}!`);
+                return;
+            }
+            
+            if (canPlaceShip(playerBoard, row, col, size, direction)) {
+                placeShip(playerBoard, row, col, size, direction);
+                playerShips.push({ row, col, size, direction, hits: 0 });
+                
+                // Update ship count
+                shipType.placed++;
+                
+                updatePlayerBoard();
+                updateShipSelector();
+            }
+        }
+        
+        function canPlaceShip(board, row, col, size, direction) {
+            for (let i = 0; i < size; i++) {
+                const r = direction === 'vertical' ? row + i : row;
+                const c = direction === 'horizontal' ? col + i : col;
+                
+                if (r >= BOARD_SIZE || c >= BOARD_SIZE || board[r][c] !== 0) {
+                    return false;
+                }
+            }
+            return true;
+        }
+        
+        function placeShip(board, row, col, size, direction) {
+            for (let i = 0; i < size; i++) {
+                const r = direction === 'vertical' ? row + i : row;
+                const c = direction === 'horizontal' ? col + i : col;
+                board[r][c] = 1;
+            }
+        }
+        
+        function updatePlayerBoard() {
+            const board = document.getElementById('playerBoard');
+            const cells = board.querySelectorAll('.cell:not(.header-cell)');
+            
+            cells.forEach((cell, index) => {
+                const row = Math.floor(index / BOARD_SIZE);
+                const col = index % BOARD_SIZE;
+                
+                cell.className = 'cell';
+                if (playerBoard[row][col] === 1) {
+                    cell.classList.add('ship');
+                } else if (playerBoard[row][col] === 2) {
+                    cell.classList.add('miss');
+                    cell.textContent = 'X';
+                } else if (playerBoard[row][col] === 3) {
+                    cell.classList.add('hit');
+                    cell.textContent = 'O';
+                }
+            });
+        }
+        
+        function updateEnemyBoard() {
+            const board = document.getElementById('enemyBoard');
+            const cells = board.querySelectorAll('.cell:not(.header-cell)');
+            
+            cells.forEach((cell, index) => {
+                const row = Math.floor(index / BOARD_SIZE);
+                const col = index % BOARD_SIZE;
+                
+                cell.className = 'cell';
+                if (enemyBoard[row][col] === 2) {
+                    cell.classList.add('miss');
+                    cell.textContent = 'X';
+                } else if (enemyBoard[row][col] === 3) {
+                    cell.classList.add('hit');
+                    cell.textContent = 'O';
+                }
+            });
+        }
+        
+        function removePlayerShip(row, col) {
+            // Find the ship that contains this cell
+            const shipIndex = playerShips.findIndex(ship => {
+                for (let i = 0; i < ship.size; i++) {
+                    const r = ship.direction === 'vertical' ? ship.row + i : ship.row;
+                    const c = ship.direction === 'horizontal' ? ship.col + i : ship.col;
+                    if (r === row && c === col) {
+                        return true;
+                    }
+                }
+                return false;
+            });
+            
+            if (shipIndex !== -1) {
+                const ship = playerShips[shipIndex];
+                
+                // Remove ship from board
+                for (let i = 0; i < ship.size; i++) {
+                    const r = ship.direction === 'vertical' ? ship.row + i : ship.row;
+                    const c = ship.direction === 'horizontal' ? ship.col + i : ship.col;
+                    playerBoard[r][c] = 0;
+                }
+                
+                // Update ship count
+                const shipType = SHIPS.find(s => s.size === ship.size);
+                shipType.placed--;
+                
+                // Remove ship from array
+                playerShips.splice(shipIndex, 1);
+                
+                updatePlayerBoard();
+                updateShipSelector();
+            }
+        }
+        
+        function updateShipSelector() {
+            const selector = document.getElementById('shipSize');
+            const options = selector.querySelectorAll('option');
+            
+            options.forEach(option => {
+                const size = parseInt(option.value);
+                const shipType = SHIPS.find(s => s.size === size);
+                const remaining = shipType.count - shipType.placed;
+                
+                if (remaining <= 0) {
+                    option.disabled = true;
+                    option.textContent = option.textContent.split(' (')[0] + ` (${remaining} left)`;
+                } else {
+                    option.textContent = option.textContent.split(' (')[0] + ` (${remaining} left)`;
+                }
+            });
+            
+            // Update status with current ship placement progress
+            const destroyer = SHIPS.find(s => s.size === 2);
+            const cruiser = SHIPS.find(s => s.size === 3);
+            const battleship = SHIPS.find(s => s.size === 5);
+            
+            const statusText = `Ships placed: ${destroyer.placed}/1 Destroyer, ${cruiser.placed}/2 Cruisers, ${battleship.placed}/1 Battleship`;
+            document.getElementById('status').textContent = statusText;
+        }
+        
+        function placeEnemyShips() {
+            enemyBoard = initBoard();
+            enemyShips = [];
+            
+            SHIPS.forEach(shipType => {
+                for (let i = 0; i < shipType.count; i++) {
+                    let placed = false;
+                    while (!placed) {
+                        const row = Math.floor(Math.random() * BOARD_SIZE);
+                        const col = Math.floor(Math.random() * BOARD_SIZE);
+                        const direction = Math.random() < 0.5 ? 'horizontal' : 'vertical';
+                        
+                        if (canPlaceShip(enemyBoard, row, col, shipType.size, direction)) {
+                            placeShip(enemyBoard, row, col, shipType.size, direction);
+                            enemyShips.push({ row, col, size: shipType.size, direction, hits: 0 });
+                            placed = true;
+                        }
+                    }
+                }
+            });
+        }
+        
+        function playerShoot(row, col) {
+            if (enemyBoard[row][col] >= 2) return; // Already shot
+            
+            if (enemyBoard[row][col] === 1) {
+                enemyBoard[row][col] = 3; // Hit
+                document.getElementById('status').textContent = 'Hit! Your turn again.';
+                
+                // Update ship hit count
+                const ship = enemyShips.find(s => {
+                    for (let i = 0; i < s.size; i++) {
+                        const r = s.direction === 'vertical' ? s.row + i : s.row;
+                        const c = s.direction === 'horizontal' ? s.col + i : s.col;
+                        if (r === row && c === col) {
+                            s.hits++;
+                            return true;
+                        }
+                    }
+                    return false;
+                });
+                
+                if (ship && ship.hits === ship.size) {
+                    document.getElementById('status').textContent = 'You sank a ship!';
+                }
+                
+                if (checkWin(enemyShips)) {
+                    document.getElementById('status').textContent = 'You win!';
+                    gameState = 'gameOver';
+                }
+            } else {
+                enemyBoard[row][col] = 2; // Miss
+                document.getElementById('status').textContent = 'Miss! Computer\'s turn.';
+                currentPlayer = 'computer';
+                setTimeout(computerTurn, 1000);
+            }
+            
+            updateEnemyBoard();
+        }
+        
+        function computerTurn() {
+            let row, col;
+            
+            if (enemyTargets.length > 0) {
+                // Smart targeting after a hit
+                const target = enemyTargets.shift();
+                row = target.row;
+                col = target.col;
+            } else {
+                // Random targeting
+                do {
+                    row = Math.floor(Math.random() * BOARD_SIZE);
+                    col = Math.floor(Math.random() * BOARD_SIZE);
+                } while (playerBoard[row][col] >= 2);
+            }
+            
+            if (playerBoard[row][col] === 1) {
+                playerBoard[row][col] = 3; // Hit
+                enemyHits.push({ row, col });
+                document.getElementById('status').textContent = 'Computer hit! Computer\'s turn again.';
+                
+                // Add adjacent cells to targets
+                const adjacent = [
+                    { row: row - 1, col },
+                    { row: row + 1, col },
+                    { row, col: col - 1 },
+                    { row, col: col + 1 }
+                ];
+                
+                adjacent.forEach(target => {
+                    if (target.row >= 0 && target.row < BOARD_SIZE && 
+                        target.col >= 0 && target.col < BOARD_SIZE && 
+                        playerBoard[target.row][target.col] < 2) {
+                        enemyTargets.push(target);
+                    }
+                });
+                
+                // Check if ship is sunk
+                const ship = playerShips.find(s => {
+                    for (let i = 0; i < s.size; i++) {
+                        const r = s.direction === 'vertical' ? s.row + i : s.row;
+                        const c = s.direction === 'horizontal' ? s.col + i : s.col;
+                        if (r === row && c === col) {
+                            s.hits++;
+                            return true;
+                        }
+                    }
+                    return false;
+                });
+                
+                if (ship && ship.hits === ship.size) {
+                    document.getElementById('status').textContent = 'Computer sank your ship!';
+                    enemyTargets = []; // Clear targets when ship is sunk
+                }
+                
+                if (checkWin(playerShips)) {
+                    document.getElementById('status').textContent = 'Computer wins!';
+                    gameState = 'gameOver';
+                    return;
+                }
+                
+                setTimeout(computerTurn, 1000);
+            } else {
+                playerBoard[row][col] = 2; // Miss
+                document.getElementById('status').textContent = 'Computer missed! Your turn.';
+                currentPlayer = 'player';
+            }
+            
+            updatePlayerBoard();
+        }
+        
+        function checkWin(ships) {
+            return ships.every(ship => ship.hits === ship.size);
+        }
+        
+        function startGame() {
+            // Check if exactly the required ships are placed
+            const destroyer = SHIPS.find(s => s.size === 2);
+            const cruiser = SHIPS.find(s => s.size === 3);
+            const battleship = SHIPS.find(s => s.size === 5);
+            
+            if (destroyer.placed !== 1 || cruiser.placed !== 2 || battleship.placed !== 1) {
+                alert('You must place exactly: 1 Destroyer (2 squares), 2 Cruisers (3 squares), and 1 Battleship (5 squares)!');
+                return;
+            }
+            
+            gameState = 'playing';
+            currentPlayer = 'player';
+            document.getElementById('setupControls').style.display = 'none';
+            document.getElementById('status').textContent = 'Game started! Click on enemy board to shoot.';
+            
+            placeEnemyShips();
+            updateEnemyBoard();
+        }
+        
+        // Initialize game
+        playerBoard = initBoard();
+        enemyBoard = initBoard();
+        createBoardHTML('playerBoard', true);
+        createBoardHTML('enemyBoard', true);
+        updateShipSelector();
+    </script>
+</body>
+</html>
