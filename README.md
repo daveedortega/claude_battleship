@@ -11,4 +11,4 @@ and css and what not and I believe I am more techsavy than most, but nowhere nea
 Incredible. 
 
 PLAY!
-<a href="battleship.html">🚢 Play Battleship</a>
+<a href="main.html">🚢 Play Battleship</a>
