@@ -9,3 +9,6 @@ I know it is such a tiny thing, but you HAVE to understand, I KNOW NOTHING ABOUT
 and css and what not and I believe I am more techsavy than most, but nowhere near good enough to code this in 2 minutes. 
 
 Incredible. 
+
+PLAY!
+<a href="battleship.html">🚢 Play Battleship</a>
